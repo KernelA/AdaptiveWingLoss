@@ -1,19 +1,21 @@
-import matplotlib
-matplotlib.use('Agg')
-import math
-import torch
 import copy
-import time
-from torch.autograd import Variable
-import shutil
-from skimage import io
-import numpy as np
-from utils.utils import fan_NME, show_landmarks, get_preds_fromhm
-from PIL import Image, ImageDraw
+import math
 import os
+import shutil
 import sys
+import time
+
 import cv2
+import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from PIL import Image, ImageDraw
+from skimage import io
+
+from utils.utils import fan_NME, get_preds_fromhm, show_landmarks
+
+matplotlib.use('Agg')
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
