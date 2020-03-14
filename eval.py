@@ -11,59 +11,40 @@ from core import models
 from core.dataloader import get_dataset
 from core.evaler import eval_model
 
+def check_args(args):
+    if not os.path.exists(args.val_img_dir):
+        raise ValueError(f"'{args.val_img_dir}' does not exist")
 
-if __main__ == "__main__":
-    # Parse arguments
-    parser = argparse.ArgumentParser()
-    # Dataset paths
-    parser.add_argument('--val_img_dir', type=str,
-                        help='Validation image directory')
-    parser.add_argument('--val_landmarks_dir', type=str,
-                        help='Validation landmarks directory')
-    parser.add_argument('--num_landmarks', type=int, default=68,
-                        help='Number of landmarks')
+    if not os.path.isdir(args.val_img_dir):
+        raise ValueError(f"'{args.val_img_dir}' is not a directory")
 
-    # Checkpoint and pretrained weights
-    parser.add_argument('--ckpt_save_path', type=str,
-                        help='a directory to save checkpoint file')
-    parser.add_argument('--pretrained_weights', type=str,
-                        help='a directory to save pretrained_weights')
+    if not os.path.isfile(args.pretrained_weights):
+        raise ValueError(f"'{args.pretrained_weights}' is not a file")
 
-    # Eval options
-    parser.add_argument('--batch_size', type=int, default=25,
-                        help='learning rate decay after each epoch')
 
-    # Network parameters
-    parser.add_argument('--hg_blocks', type=int, default=4,
-                        help='Number of HG blocks to stack')
-    parser.add_argument('--gray_scale', type=str, default="False",
-                        help='Whether to convert RGB image into gray scale during training')
-    parser.add_argument('--end_relu', type=str, default="False",
-                        help='Whether to add relu at the end of each HG module')
-
-    args = parser.parse_args()
-
-    VAL_IMG_DIR = args.val_img_dir
-    VAL_LANDMARKS_DIR = args.val_landmarks_dir
-    CKPT_SAVE_PATH = args.ckpt_save_path
-    BATCH_SIZE = args.batch_size
-    PRETRAINED_WEIGHTS = args.pretrained_weights
-    GRAY_SCALE = False if args.gray_scale == 'False' else True
-    HG_BLOCKS = args.hg_blocks
-    END_RELU = False if args.end_relu == 'False' else True
-    NUM_LANDMARKS = args.num_landmarks
+def main(args):
+    val_img_dir = args.val_img_dir
+    val_landmarks_dir = args.val_landmarks_dir
+    ckpt_save_path = args.ckpt_save_path
+    batch_size = args.batch_size
+    pretrained_weights = args.pretrained_weights
+    gray_scale = args.gray_scale
+    hg_blocks = args.hg_blocks
+    end_relu = args.end_relu 
+    num_landmarks = args.num_landmarks
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    writer = SummaryWriter(CKPT_SAVE_PATH)
+    print(f"Available device: {device}")
 
-    dataloaders, dataset_sizes = get_dataset(VAL_IMG_DIR, VAL_LANDMARKS_DIR,
-                                            BATCH_SIZE, NUM_LANDMARKS)
+    writer = SummaryWriter(ckpt_save_path)
+    dataloaders, dataset_sizes = get_dataset(val_img_dir, val_landmarks_dir,
+                                            batch_size, num_landmarks)
     use_gpu = torch.cuda.is_available()
-    model_ft = models.FAN(HG_BLOCKS, END_RELU, GRAY_SCALE, NUM_LANDMARKS)
+    model_ft = models.FAN(hg_blocks, end_relu, gray_scale, num_landmarks)
 
-    if PRETRAINED_WEIGHTS != "None":
-        checkpoint = torch.load(PRETRAINED_WEIGHTS)
+    if os.path.exists(pretrained_weights):
+        checkpoint = torch.load(pretrained_weights)
         if 'state_dict' not in checkpoint:
             model_ft.load_state_dict(checkpoint)
         else:
@@ -75,5 +56,40 @@ if __main__ == "__main__":
             model_ft.load_state_dict(model_weights)
 
     model_ft = model_ft.to(device)
+    model_ft = eval_model(model_ft, dataloaders, dataset_sizes, writer, use_gpu, 1, 'val', ckpt_save_path, num_landmarks)
 
-    model_ft = eval_model(model_ft, dataloaders, dataset_sizes, writer, use_gpu, 1, 'val', CKPT_SAVE_PATH, NUM_LANDMARKS)
+
+if __name__ == "__main__":
+    # Parse arguments
+    parser = argparse.ArgumentParser()
+    # Dataset paths
+    parser.add_argument('--val_img_dir', type=str,
+                        help='A path to validation image directory', required=True)
+    parser.add_argument('--val_landmarks_dir', type=str,
+                        help='A path to validation landmarks directory')
+    parser.add_argument('--num_landmarks', type=int, default=98,
+                        help='Number of landmarks')
+
+    # Checkpoint and pretrained weights
+    parser.add_argument('--ckpt_save_path', type=str,
+                        help='A directory to save checkpoint file', required=True)
+    parser.add_argument('--pretrained_weights', type=str,
+                        help='A path to load pretrained_weights', required=True)
+
+    # Eval options
+    parser.add_argument('--batch_size', type=int, default=5,
+                        help='Batch size')
+    parser.add_argument('--num-workers', type=int, default=1, help="A number of workers to load image from directory")
+
+    # Network parameters
+    parser.add_argument('--hg_blocks', type=int, default=4,
+                        help='Number of HG blocks to stack')
+    parser.add_argument('--gray_scale', action="store_true",
+                        help='Whether to convert RGB image into gray scale during training')
+    parser.add_argument('--end_relu', action="store_true",
+                        help='Whether to add relu at the end of each HG module')
+
+    args = parser.parse_args()
+
+    check_args(args)
+    main(args)
