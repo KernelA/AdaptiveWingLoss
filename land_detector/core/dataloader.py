@@ -270,9 +270,12 @@ class FaceDataset(Dataset):
         self.detect_face = detect_face
         self.enhance = enhance
         self.center_shift = center_shift
+        self.__image_size = 256
+        self.__device = torch.device(
+            "cuda:0" if torch.cuda.is_available() else "cpu")
         if self.detect_face:
             self.face_detector = MTCNN(
-                thresholds=[0.5, 0.6, 0.7], image_size=225, select_largest=False)
+                thresholds=[0.5, 0.6, 0.7], image_size=self.__image_size, select_largest=False, device=self.__device)
 
     def __find_images(self, extensions: Tuple[str]):
         for path in map(pathlib.Path, recursive_dir_scanning(self.img_dir)):
@@ -294,9 +297,11 @@ class FaceDataset(Dataset):
         if self.gray_scale:
             img = skimage.color.gray2rgb(img)
 
-        img = ski_transform.resize(img, (256, 256), order=3)
+        if not self.detect_face:
+            img = ski_transform.resize(
+                img, (self.__image_size, self.__image_size), order=3)
 
-        return img
+        return skimage.img_as_ubyte(img)
 
 
 class TrainFaceLandmarksDataset(FaceDataset):
@@ -317,6 +322,7 @@ class TrainFaceLandmarksDataset(FaceDataset):
                          gray_scale=gray_scale, detect_face=detect_face, enhance=enhance, center_shift=center_shift)
         self.landmarks_dir = landmarks_dir
         self.transform = transform
+        self.__heatmap_size = 64
 
     def __getitem__(self, idx):
         image = super().__getitem__(idx)
@@ -363,7 +369,7 @@ class TrainFaceLandmarksDataset(FaceDataset):
 
         if len(landmarks) != 0:
             new_image, new_landmarks = cv_crop(image, landmarks, center,
-                                               scale, 256, self.center_shift)
+                                               scale, self.__image_size, self.center_shift)
             tries = 0
             while self.center_shift != 0 and tries < 5 and (np.max(new_landmarks) > 240 or np.min(new_landmarks) < 15):
                 center = [image_width // 2, image_width // 2]
@@ -374,20 +380,21 @@ class TrainFaceLandmarksDataset(FaceDataset):
                                                    self.center_shift))
 
                 new_image, new_landmarks = cv_crop(image, landmarks,
-                                                   center, scale, 256,
+                                                   center, scale, self.__image_size,
                                                    self.center_shift)
                 tries += 1
             if np.max(new_landmarks) > 250 or np.min(new_landmarks) < 5:
                 center = [image_width // 2, image_width // 2]
                 scale = 2.25
                 new_image, new_landmarks = cv_crop(image, landmarks,
-                                                   center, scale, 256,
+                                                   center, scale, self.__image_size,
                                                    100)
-            assert (np.min(new_landmarks) > 0 and np.max(new_landmarks) < 256), \
+            assert (np.min(new_landmarks) > 0 and np.max(new_landmarks) < self.__image_size), \
                 "Landmarks out of boundary!"
             image = new_image
             landmarks = new_landmarks
-            heatmap = np.zeros((self.num_landmarks, 64, 64))
+            heatmap = np.zeros(
+                (self.num_landmarks, self.__heatmap_size, self.__heatmap_size))
             for i in range(self.num_landmarks):
                 if landmarks[i][0] > 0:
                     heatmap[i] = draw_gaussian(
@@ -419,6 +426,23 @@ class TestFaceDataset(FaceDataset):
 
     def __getitem__(self, index):
         img = super().__getitem__(index)
+
+        if self.detect_face:
+            try:
+                faces, probabilities = self.face_detector(
+                    img, return_prob=True)
+
+                if isinstance(faces, list):
+                    max_index = np.array(np.argmax(probabilities), ndmin=1)
+                    img = faces[max_index[0]]
+                else:
+                    img = faces
+                img = img.cpu().numpy().transpose((1, 2, 0))
+            except IndexError:
+                img = ski_transform.resize(
+                    img, (self.__image_size, self.__image_size), order=3)
+
+            img = skimage.img_as_ubyte(img)
 
         if self.transform:
             img = self.transform(img)

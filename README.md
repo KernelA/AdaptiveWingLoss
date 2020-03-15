@@ -53,6 +53,8 @@ You can save images with landmarks if set `--debug-dir` option. A path to direct
 
 `--gray-scale` convert all input images to grayscale.
 
+`--detect-face` auto crop face on loaded image, but recommended to make preprocessing and does not set this option.
+
 Additional options: `--help`.
 
 ## Run Evaluation on WFLW dataset

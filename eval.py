@@ -39,6 +39,11 @@ def check_args(args):
     if args.debug_dir is not None:
         os.makedirs(args.debug_dir, exist_ok=True)
 
+    if args.detect_face and args.num_workers != 0:
+        args.num_workers = 0
+        _LOGGER.warning(
+            "Detect face mode was selected but num_workers is not zero. Force num_workers to zero because there is problem with multiprocessing")
+
 
 def load_weights(path_to_pretrain_weights: str, model):
     _LOGGER.info(f"Load pretrained model from '{path_to_pretrain_weights}'")
@@ -72,7 +77,7 @@ def main(args):
     _LOGGER.info(f"Available device: {device}")
 
     dataloader = get_test_dataset(val_img_dir,
-                                  batch_size, num_landmarks, num_workers, gray_scale=gray_scale, img_extensions=args.img_extensions)
+                                  batch_size, num_landmarks, num_workers, gray_scale=gray_scale, img_extensions=args.img_extensions, detect_face=args.detect_face)
     use_gpu = torch.cuda.is_available()
     model_ft = models.FAN(hg_blocks, end_relu, gray_scale, num_landmarks)
 
@@ -91,8 +96,6 @@ if __name__ == "__main__":
                         help='A path to validation image directory', required=True)
     parser.add_argument('--val_landmarks_dir', type=str, default=None,
                         help='A path to validation landmarks directory.')
-    parser.add_argument('--num_landmarks', type=int, default=98,
-                        help='Number of landmarks')
     parser.add_argument('--pred', type=str,
                         help='A path to json which will be store predictions', required=True)
     parser.add_argument("--img-extensions", nargs="+",
@@ -105,12 +108,16 @@ if __name__ == "__main__":
                         help='A path to load pretrained_weights', required=True)
 
     # Eval options
+    parser.add_argument('--num_landmarks', type=int, default=98,
+                        help='Number of landmarks')
     parser.add_argument('--batch_size', type=int, default=5,
                         help='Batch size')
     parser.add_argument('--num-workers', type=int, default=1,
                         help="A number of workers to load image from directory")
     parser.add_argument("--debug-dir", type=str, default=None,
                         help="A path to directory where to save images with predicted landmarks")
+    parser.add_argument("--detect-face", action="store_true",
+                        help="Detect faces using MTCN from facenet_pytorch. Face is selecting with highest probability.")
 
     # Network parameters
     parser.add_argument('--hg_blocks', type=int, default=4,
