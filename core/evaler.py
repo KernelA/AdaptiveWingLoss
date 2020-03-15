@@ -1,24 +1,24 @@
 import copy
+import json
+import logging
 import math
 import os
+import pathlib
 import sys
 import time
-import logging
-import json
-import pathlib
-
 
 import cv2
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
-from torchvision import transforms
-from PIL import Image, ImageDraw
 import skimage
-from skimage import io, draw
+import torch
+from PIL import Image, ImageDraw
+from skimage import draw, io
+from torchvision import transforms
 
-from utils.utils import fan_NME, get_preds_fromhm, show_landmarks, resize_landmarks, show_pred_landmarks, convert_to_labels
+from utils.utils import (convert_to_labels, fan_NME, get_preds_fromhm,
+                         resize_landmarks, show_landmarks, show_pred_landmarks)
 
 matplotlib.use('Agg')
 

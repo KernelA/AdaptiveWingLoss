@@ -1,6 +1,5 @@
 import logging.config
 
-
 _BASE_FORMAT = '%(asctime)-15s %(levelname)-5s %(module)-5s [%(funcName)s] %(message)-15s'
 
 LOGGER_CONFIG = {

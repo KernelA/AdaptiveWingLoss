@@ -2,20 +2,21 @@ import copy
 import glob
 import math
 import os
+import pathlib
 import random
 import sys
-import pathlib
-from typing import Tuple, Sequence
+from typing import Sequence, Tuple
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io as sio
+import skimage
 import torch
+from facenet_pytorch import MTCNN
 from imgaug import augmenters as iaa
 from PIL import Image
 from scipy import interpolate
-import skimage
 from skimage import io
 from skimage import transform as ski_transform
 from torch.utils.data import DataLoader, Dataset
@@ -23,12 +24,10 @@ from torchvision import transforms, utils
 from torchvision.transforms.functional import (adjust_brightness,
                                                adjust_contrast, adjust_hue,
                                                adjust_saturation)
-from facenet_pytorch import MTCNN
-
 
 from utils.utils import (cv_crop, cv_rotate, draw_gaussian, fig2data,
-                         generate_weight_map, power_transform, shuffle_lr,
-                         transform, recursive_dir_scanning)
+                         generate_weight_map, power_transform,
+                         recursive_dir_scanning, shuffle_lr, transform)
 
 
 class AddBoundary(object):

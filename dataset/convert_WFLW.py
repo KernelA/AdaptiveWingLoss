@@ -1,14 +1,18 @@
-import sys
-sys.path.insert(0, "../utils/")
-import numpy as np
-import os
 import glob
-import scipy.io as sio
+import os
+import sys
+
 import cv2
-from skimage import io
-from utils import cv_crop
+import numpy as np
+import scipy.io as sio
 import torch
 from joblib import Parallel, delayed
+from skimage import io
+
+from utils import cv_crop
+
+sys.path.insert(0, "../utils/")
+
 
 def transform(point, center, scale, resolution, rotation=0, invert=False):
     _pt = np.ones(3)
@@ -47,6 +51,7 @@ def transform(point, center, scale, resolution, rotation=0, invert=False):
 
     return new_point.astype(float)
 
+
 def parse_pts(pts_file):
     pts = []
     with open(pts_file) as f:
@@ -62,6 +67,7 @@ def parse_pts(pts_file):
         print('Not enough points')
     else:
         return np.array(pts)
+
 
 class WFLWInstance():
     def __init__(self, line, idx):
@@ -84,6 +90,7 @@ class WFLWInstance():
         self.image_base_name = line[-1]
         self.image_first_point = line[0]
 
+
 def load_meta_subset_data(meta_path):
     with open(meta_path) as f:
         lines = f.readlines()
@@ -94,6 +101,7 @@ def load_meta_subset_data(meta_path):
         line = line.strip().split(' ')
         meta_data.append(line[-1]+line[0])
     return meta_data
+
 
 def load_meta_data(meta_path, meta_subset_data=None):
     with open(meta_path) as f:
@@ -107,6 +115,7 @@ def load_meta_data(meta_path, meta_subset_data=None):
             meta_data.append(wflw_instance)
             idx += 1
     return meta_data
+
 
 def process_single(single, image_path, image_save_path, landmarks_save_path):
     # print('Processing: {}'.format(single.image_base_name))
@@ -136,8 +145,11 @@ def process_single(single, image_path, image_save_path, landmarks_save_path):
         new_image, new_landmarks = cv_crop(image, pts, center, scale, 450, 0)
         assert (scale_factor > 0), "Landmarks out of boundary!"
     if new_image != []:
-        io.imsave(os.path.join(image_save_path, os.path.basename(image_full_path[:-4]+'_' + str(single.idx) + image_full_path[-4:])), new_image)
-        np.save(os.path.join(landmarks_save_path, os.path.basename(image_full_path[:-4]+ '_' + str(single.idx) + '.pts')), new_landmarks)
+        io.imsave(os.path.join(image_save_path, os.path.basename(
+            image_full_path[:-4]+'_' + str(single.idx) + image_full_path[-4:])), new_image)
+        np.save(os.path.join(landmarks_save_path, os.path.basename(
+            image_full_path[:-4] + '_' + str(single.idx) + '.pts')), new_landmarks)
+
 
 if __name__ == '__main__':
     image_path = './WFLW_images/'
@@ -152,10 +164,11 @@ if __name__ == '__main__':
     exts = ['*.png', '*.jpg']
     meta_subset_data = load_meta_subset_data(meta_subset_path)
     meta_data = load_meta_data(meta_path, meta_subset_data)
-    assert (len(meta_data) == len(meta_subset_data)), "Some images are missing!"
+    assert (len(meta_data) == len(meta_subset_data)
+            ), "Some images are missing!"
     print("Total images: {0:d}".format(len(meta_data)))
     Parallel(n_jobs=10,
-            backend='threading',
-            verbose=10)(delayed(process_single)(single, image_path,
-                                                image_save_path,
-                                                landmarks_save_path) for single in meta_data)
+             backend='threading',
+             verbose=10)(delayed(process_single)(single, image_path,
+                                                 image_save_path,
+                                                 landmarks_save_path) for single in meta_data)

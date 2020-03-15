@@ -1,15 +1,13 @@
 import argparse
+import logging
 import os
 import time
-import logging
 
 import torch
 
-from core import models
+from core import logconfig, models
 from core.dataloader import get_test_dataset
 from core.evaler import eval_model, find_landmarks
-
-from core import logconfig
 
 logging.config.dictConfig(logconfig.LOGGER_CONFIG)
 
