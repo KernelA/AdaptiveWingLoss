@@ -1,18 +1,20 @@
-from __future__ import print_function, division
+import math
 import os
 import sys
-import math
-import torch
+from typing import Iterator
+
 import cv2
-from PIL import Image
-from skimage import io
-from skimage import transform as ski_transform
-from scipy import ndimage
-import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import torch
+from PIL import Image
+from scipy import ndimage
+from skimage import io
+from skimage import transform as ski_transform
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
+
 
 def _gaussian(
         size=3, sigma=0.25, amplitude=1, normalize=False, width=None,
@@ -39,6 +41,20 @@ def _gaussian(
         gauss = gauss / np.sum(gauss)
     return gauss
 
+
+def recursive_dir_scanning(path_to_dir: str) -> Iterator[str]:
+    dirs = [path_to_dir]
+
+    while dirs:
+        current_dir = dirs.pop()
+
+        with os.scandir(current_dir) as entry_it:
+            for entry in entry_it:
+                if entry.is_dir():
+                    dirs.append(entry.path)
+                yield entry.path
+
+
 def draw_gaussian(image, point, sigma):
     # Check if the gaussian is inside
     ul = [np.floor(np.floor(point[0]) - 3 * sigma),
@@ -61,23 +77,25 @@ def draw_gaussian(image, point, sigma):
     while not correct:
         try:
             image[img_y[0] - 1:img_y[1], img_x[0] - 1:img_x[1]
-            ] = image[img_y[0] - 1:img_y[1], img_x[0] - 1:img_x[1]] + g[g_y[0] - 1:g_y[1], g_x[0] - 1:g_x[1]]
+                  ] = image[img_y[0] - 1:img_y[1], img_x[0] - 1:img_x[1]] + g[g_y[0] - 1:g_y[1], g_x[0] - 1:g_x[1]]
             correct = True
         except:
-            print('img_x: {}, img_y: {}, g_x:{}, g_y:{}, point:{}, g_shape:{}, ul:{}, br:{}'.format(img_x, img_y, g_x, g_y, point, g.shape, ul, br))
+            print('img_x: {}, img_y: {}, g_x:{}, g_y:{}, point:{}, g_shape:{}, ul:{}, br:{}'.format(
+                img_x, img_y, g_x, g_y, point, g.shape, ul, br))
             ul = [np.floor(np.floor(point[0]) - 3 * sigma),
-                np.floor(np.floor(point[1]) - 3 * sigma)]
+                  np.floor(np.floor(point[1]) - 3 * sigma)]
             br = [np.floor(np.floor(point[0]) + 3 * sigma),
-                np.floor(np.floor(point[1]) + 3 * sigma)]
+                  np.floor(np.floor(point[1]) + 3 * sigma)]
             g_x = [int(max(1, -ul[0])), int(min(br[0], image.shape[1])) -
-                int(max(1, ul[0])) + int(max(1, -ul[0]))]
+                   int(max(1, ul[0])) + int(max(1, -ul[0]))]
             g_y = [int(max(1, -ul[1])), int(min(br[1], image.shape[0])) -
-                int(max(1, ul[1])) + int(max(1, -ul[1]))]
+                   int(max(1, ul[1])) + int(max(1, -ul[1]))]
             img_x = [int(max(1, ul[0])), int(min(br[0], image.shape[1]))]
             img_y = [int(max(1, ul[1])), int(min(br[1], image.shape[0]))]
             pass
     image[image > 1] = 1
     return image
+
 
 def transform(point, center, scale, resolution, rotation=0, invert=False):
     _pt = np.ones(3)
@@ -116,12 +134,13 @@ def transform(point, center, scale, resolution, rotation=0, invert=False):
 
     return new_point.astype(int)
 
+
 def cv_crop(image, landmarks, center, scale, resolution=256, center_shift=0):
     new_image = cv2.copyMakeBorder(image, center_shift,
                                    center_shift,
                                    center_shift,
                                    center_shift,
-                                   cv2.BORDER_CONSTANT, value=[0,0,0])
+                                   cv2.BORDER_CONSTANT, value=[0, 0, 0])
     new_landmarks = landmarks.copy()
     if center_shift != 0:
         center[0] += center_shift
@@ -134,21 +153,26 @@ def cv_crop(image, landmarks, center, scale, resolution=256, center_shift=0):
     right = int(center[0] + length // 2)
     y_pad = abs(min(top, new_image.shape[0] - bottom, 0))
     x_pad = abs(min(left, new_image.shape[1] - right, 0))
-    top, bottom, left, right = top + y_pad, bottom + y_pad, left + x_pad, right + x_pad
+    top, bottom, left, right = top + y_pad, bottom + \
+        y_pad, left + x_pad, right + x_pad
     new_image = cv2.copyMakeBorder(new_image, y_pad,
                                    y_pad,
                                    x_pad,
                                    x_pad,
-                                   cv2.BORDER_CONSTANT, value=[0,0,0])
+                                   cv2.BORDER_CONSTANT, value=[0, 0, 0])
     new_image = new_image[top:bottom, left:right]
     new_image = cv2.resize(new_image, dsize=(int(resolution), int(resolution)),
                            interpolation=cv2.INTER_LINEAR)
-    new_landmarks[:, 0] = (new_landmarks[:, 0] + x_pad - left) * resolution / length
-    new_landmarks[:, 1] = (new_landmarks[:, 1] + y_pad - top) * resolution / length
+    new_landmarks[:, 0] = (new_landmarks[:, 0] +
+                           x_pad - left) * resolution / length
+    new_landmarks[:, 1] = (new_landmarks[:, 1] +
+                           y_pad - top) * resolution / length
     return new_image, new_landmarks
 
+
 def cv_rotate(image, landmarks, heatmap, rot, scale, resolution=256):
-    img_mat = cv2.getRotationMatrix2D((resolution//2, resolution//2), rot, scale)
+    img_mat = cv2.getRotationMatrix2D(
+        (resolution//2, resolution//2), rot, scale)
     ones = np.ones(shape=(landmarks.shape[0], 1))
     stacked_landmarks = np.hstack([landmarks, ones])
     new_landmarks = img_mat.dot(stacked_landmarks.T).T
@@ -164,10 +188,12 @@ def cv_rotate(image, landmarks, heatmap, rot, scale, resolution=256):
                                                    new_landmarks[i]/4.0+1, 1)
         return new_image, new_landmarks, new_heatmap
 
+
 def show_landmarks(image, heatmap, gt_landmarks, gt_heatmap):
     """Show image with pred_landmarks"""
     pred_landmarks = []
-    pred_landmarks, _ = get_preds_fromhm(torch.from_numpy(heatmap).unsqueeze(0))
+    pred_landmarks, _ = get_preds_fromhm(
+        torch.from_numpy(heatmap).unsqueeze(0))
     pred_landmarks = pred_landmarks.squeeze()*4
 
     # pred_landmarks2 = get_preds_fromhm2(heatmap)
@@ -181,9 +207,12 @@ def show_landmarks(image, heatmap, gt_landmarks, gt_heatmap):
     heatmap = heatmap.astype(np.uint8)
     heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
     plt.imshow(image)
-    plt.scatter(gt_landmarks[:, 0], gt_landmarks[:, 1], s=0.5, marker='.', c='g')
-    plt.scatter(pred_landmarks[:, 0], pred_landmarks[:, 1], s=0.5, marker='.', c='r')
+    plt.scatter(gt_landmarks[:, 0], gt_landmarks[:, 1],
+                s=0.5, marker='.', c='g')
+    plt.scatter(pred_landmarks[:, 0],
+                pred_landmarks[:, 1], s=0.5, marker='.', c='r')
     plt.pause(0.001)  # pause a bit so that plots are updated
+
 
 def fan_NME(pred_heatmaps, gt_landmarks, num_landmarks=68):
     '''
@@ -210,7 +239,7 @@ def fan_NME(pred_heatmaps, gt_landmarks, num_landmarks=68):
             norm_factor = np.linalg.norm(left_eye - right_eye)
             # norm_factor = np.linalg.norm(gt_landmark[36]- gt_landmark[45])
         elif num_landmarks == 98:
-            norm_factor = np.linalg.norm(gt_landmark[60]- gt_landmark[72])
+            norm_factor = np.linalg.norm(gt_landmark[60] - gt_landmark[72])
         elif num_landmarks == 19:
             left, top = gt_landmark[-2, :]
             right, bottom = gt_landmark[-1, :]
@@ -218,9 +247,11 @@ def fan_NME(pred_heatmaps, gt_landmarks, num_landmarks=68):
             gt_landmark = gt_landmark[:-2, :]
         elif num_landmarks == 29:
             # norm_factor = np.linalg.norm(gt_landmark[8]- gt_landmark[9])
-            norm_factor = np.linalg.norm(gt_landmark[16]- gt_landmark[17])
-        nme += (np.sum(np.linalg.norm(pred_landmark - gt_landmark, axis=1)) / pred_landmark.shape[0]) / norm_factor
+            norm_factor = np.linalg.norm(gt_landmark[16] - gt_landmark[17])
+        nme += (np.sum(np.linalg.norm(pred_landmark - gt_landmark,
+                                      axis=1)) / pred_landmark.shape[0]) / norm_factor
     return nme
+
 
 def fan_NME_hm(pred_heatmaps, gt_heatmaps, num_landmarks=68):
     '''
@@ -245,16 +276,53 @@ def fan_NME_hm(pred_heatmaps, gt_heatmaps, num_landmarks=68):
             right_eye = np.average(gt_landmark[42:48], axis=0)
             norm_factor = np.linalg.norm(left_eye - right_eye)
         else:
-            norm_factor = np.linalg.norm(gt_landmark[60]- gt_landmark[72])
-        nme += (np.sum(np.linalg.norm(pred_landmark - gt_landmark, axis=1)) / pred_landmark.shape[0]) / norm_factor
+            norm_factor = np.linalg.norm(gt_landmark[60] - gt_landmark[72])
+        nme += (np.sum(np.linalg.norm(pred_landmark - gt_landmark,
+                                      axis=1)) / pred_landmark.shape[0]) / norm_factor
     return nme
 
-def power_transform(img, power):
-    img = np.array(img)
-    img_new = np.power((img/255.0), power) * 255.0
-    img_new = img_new.astype(np.uint8)
-    img_new = Image.fromarray(img_new)
+
+def convert_to_labels(pred_landmarks: np.ndarray) -> dict:
+    assert len(pred_landmarks) == 98
+    boundaries = {}
+    boundaries['cheek'] = {i: pred_landmarks[i].tolist() for i in range(33)}
+    boundaries['left_eyebrow'] = {
+        i: pred_landmarks[i].tolist() for i in range(33, 42)}
+    boundaries['right_eyebrow'] = {
+        i: pred_landmarks[i].tolist() for i in range(42, 51)}
+    boundaries['uper_left_eyelid'] = {
+        i: pred_landmarks[i].tolist() for i in range(60, 65)}
+    boundaries['lower_left_eyelid'] = {
+        i: pred_landmarks[i].tolist() for i in (60, 67, 66, 65, 64)}
+    boundaries['upper_right_eyelid'] = {
+        i: pred_landmarks[i].tolist() for i in range(68, 73)}
+    boundaries['lower_right_eyelid'] = {
+        i: pred_landmarks[i].tolist() for i in (68, 75, 74, 73, 72)}
+    boundaries['noise'] = {i: pred_landmarks[i].tolist()
+                           for i in range(51, 55)}
+    boundaries['noise_bot'] = {i: pred_landmarks[i].tolist()
+                               for i in range(55, 60)}
+    boundaries['upper_outer_lip'] = {
+        i: pred_landmarks[i].tolist() for i in range(76, 83)}
+    boundaries['upper_inner_lip'] = {
+        i: pred_landmarks[i].tolist() for i in (88, 89, 90, 91, 92)}
+    boundaries['lower_outer_lip'] = {
+        i: pred_landmarks[i].tolist() for i in (76, 87, 86, 85, 84, 83, 82)}
+    boundaries['lower_inner_lip'] = {
+        i: pred_landmarks[i].tolist() for i in (88, 95, 94, 93, 92)}
+    left_eye_index = 96
+    boundaries["left_eye"] = {
+        left_eye_index: pred_landmarks[left_eye_index].tolist()}
+    right_eye_index = 97
+    boundaries["right_eye"] = {
+        right_eye_index: pred_landmarks[right_eye_index].tolist()}
+    return boundaries
+
+
+def power_transform(img: np.ndarray, power: float) -> np.ndarray:
+    img_new = np.power(img, power)
     return img_new
+
 
 def get_preds_fromhm(hm, center=None, scale=None, rot=None):
     max, idx = torch.max(
@@ -285,6 +353,20 @@ def get_preds_fromhm(hm, center=None, scale=None, rot=None):
 
     return preds, preds_orig
 
+
+def resize_landmarks(landmarks: np.ndarray, scale_x: float, scale_y: float) -> np.ndarray:
+    scaled_landmarks = np.zeros_like(landmarks)
+    scaled_landmarks[:, 0] = np.round(landmarks[:, 0] * scale_x)
+    scaled_landmarks[:, 1] = np.round(landmarks[:, 1] * scale_y)
+    return scaled_landmarks
+
+
+def show_pred_landmarks(image: np.ndarray, landmarks: np.ndarray, ax):
+    """Show image with pred_landmarks"""
+    ax.imshow(image)
+    ax.scatter(landmarks[:, 0], landmarks[:, 1], s=15, marker='.', c='g')
+
+
 def get_index_fromhm(hm):
     max, idx = torch.max(
         hm.view(hm.size(0), hm.size(1), hm.size(2) * hm.size(3)), 2)
@@ -304,22 +386,28 @@ def get_index_fromhm(hm):
 
     return preds
 
+
 def shuffle_lr(parts, num_landmarks=68, pairs=None):
     if num_landmarks == 68:
         if pairs is None:
             pairs = [[0, 16], [1, 15], [2, 14], [3, 13], [4, 12], [5, 11], [6, 10],
-                    [7, 9], [17, 26], [18, 25], [19, 24], [20, 23], [21, 22], [36, 45],
-                    [37, 44], [38, 43], [39, 42], [41, 46], [40, 47], [31, 35], [32, 34],
-                    [50, 52], [49, 53], [48, 54], [61, 63], [60, 64], [67, 65], [59, 55], [58, 56]]
+                     [7, 9], [17, 26], [18, 25], [19, 24], [
+                         20, 23], [21, 22], [36, 45],
+                     [37, 44], [38, 43], [39, 42], [41, 46], [
+                         40, 47], [31, 35], [32, 34],
+                     [50, 52], [49, 53], [48, 54], [61, 63], [60, 64], [67, 65], [59, 55], [58, 56]]
     elif num_landmarks == 98:
         if pairs is None:
-            pairs = [[0, 32], [1,31], [2, 30], [3, 29], [4, 28], [5, 27], [6, 26], [7, 25], [8, 24], [9, 23], [10, 22], [11, 21], [12, 20], [13, 19], [14, 18], [15, 17], [33, 46], [34, 45], [35, 44], [36, 43], [37, 42], [38, 50], [39, 49], [40, 48], [41, 47], [60, 72], [61, 71], [62, 70], [63, 69], [64, 68], [65, 75], [66, 74], [67, 73], [96, 97], [55, 59], [56, 58], [76, 82], [77, 81], [78, 80], [88, 92], [89, 91], [95, 93], [87, 83], [86, 84]]
+            pairs = [[0, 32], [1, 31], [2, 30], [3, 29], [4, 28], [5, 27], [6, 26], [7, 25], [8, 24], [9, 23], [10, 22], [11, 21], [12, 20], [13, 19], [14, 18], [15, 17], [33, 46], [34, 45], [35, 44], [36, 43], [37, 42], [38, 50], [
+                39, 49], [40, 48], [41, 47], [60, 72], [61, 71], [62, 70], [63, 69], [64, 68], [65, 75], [66, 74], [67, 73], [96, 97], [55, 59], [56, 58], [76, 82], [77, 81], [78, 80], [88, 92], [89, 91], [95, 93], [87, 83], [86, 84]]
     elif num_landmarks == 19:
         if pairs is None:
-            pairs = [[0, 5], [1, 4], [2, 3], [6, 11], [7, 10], [8, 9], [12, 14], [15, 17]]
+            pairs = [[0, 5], [1, 4], [2, 3], [6, 11],
+                     [7, 10], [8, 9], [12, 14], [15, 17]]
     elif num_landmarks == 29:
         if pairs is None:
-            pairs = [[0, 1], [4, 6], [5, 7], [2, 3], [8, 9], [12, 14], [16, 17], [13, 15], [10, 11], [18, 19], [22, 23]]
+            pairs = [[0, 1], [4, 6], [5, 7], [2, 3], [8, 9], [12, 14],
+                     [16, 17], [13, 15], [10, 11], [18, 19], [22, 23]]
     for matched_p in pairs:
         idx1, idx2 = matched_p[0], matched_p[1]
         tmp = np.copy(parts[idx1])
@@ -328,12 +416,13 @@ def shuffle_lr(parts, num_landmarks=68, pairs=None):
     return parts
 
 
-def generate_weight_map(weight_map,heatmap):
+def generate_weight_map(weight_map, heatmap):
 
     k_size = 3
-    dilate = ndimage.grey_dilation(heatmap ,size=(k_size,k_size))
-    weight_map[np.where(dilate>0.2)] = 1
+    dilate = ndimage.grey_dilation(heatmap, size=(k_size, k_size))
+    weight_map[np.where(dilate > 0.2)] = 1
     return weight_map
+
 
 def fig2data(fig):
     """
@@ -342,13 +431,13 @@ def fig2data(fig):
     @return a numpy 3D array of RGBA values
     """
     # draw the renderer
-    fig.canvas.draw ( )
+    fig.canvas.draw()
 
     # Get the RGB buffer from the figure
-    w,h = fig.canvas.get_width_height()
-    buf = np.fromstring (fig.canvas.tostring_rgb(), dtype=np.uint8)
+    w, h = fig.canvas.get_width_height()
+    buf = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8)
     buf.shape = (w, h, 3)
 
     # canvas.tostring_argb give pixmap in ARGB mode. Roll the ALPHA channel to have it in RGBA mode
-    buf = np.roll (buf, 3, axis=2)
+    buf = np.roll(buf, 3, axis=2)
     return buf
