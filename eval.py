@@ -5,9 +5,9 @@ import time
 
 import torch
 
-from core import logconfig, models
-from core.dataloader import get_test_dataset
-from core.evaler import eval_model, find_landmarks
+from land_detector.core import logconfig, models
+from land_detector.core.dataloader import get_test_dataset
+from land_detector.core.evaler import eval_model, find_landmarks
 
 logging.config.dictConfig(logconfig.LOGGER_CONFIG)
 
@@ -72,7 +72,7 @@ def main(args):
     _LOGGER.info(f"Available device: {device}")
 
     dataloader = get_test_dataset(val_img_dir,
-                                  batch_size, num_landmarks, num_workers)
+                                  batch_size, num_landmarks, num_workers, gray_scale=gray_scale, img_extensions=args.img_extensions)
     use_gpu = torch.cuda.is_available()
     model_ft = models.FAN(hg_blocks, end_relu, gray_scale, num_landmarks)
 
@@ -95,6 +95,8 @@ if __name__ == "__main__":
                         help='Number of landmarks')
     parser.add_argument('--pred', type=str,
                         help='A path to json which will be store predictions', required=True)
+    parser.add_argument("--img-extensions", nargs="+",
+                        default=[".jpg", ".png"], help="File extensions to filter images separated by space. All files with extension in this list will be loaded")
 
     # Checkpoint and pretrained weights
     parser.add_argument('--ckpt_save_path', type=str,
@@ -108,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument('--num-workers', type=int, default=1,
                         help="A number of workers to load image from directory")
     parser.add_argument("--debug-dir", type=str, default=None,
-                        help="A path to directory where store photo with predicted landmarks")
+                        help="A path to directory where to save images with predicted landmarks")
 
     # Network parameters
     parser.add_argument('--hg_blocks', type=int, default=4,

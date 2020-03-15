@@ -25,9 +25,9 @@ from torchvision.transforms.functional import (adjust_brightness,
                                                adjust_contrast, adjust_hue,
                                                adjust_saturation)
 
-from utils.utils import (cv_crop, cv_rotate, draw_gaussian, fig2data,
-                         generate_weight_map, power_transform,
-                         recursive_dir_scanning, shuffle_lr, transform)
+from ..utils import (cv_crop, cv_rotate, draw_gaussian, fig2data,
+                     generate_weight_map, power_transform,
+                     recursive_dir_scanning, shuffle_lr, transform)
 
 
 class AddBoundary(object):
@@ -344,7 +344,7 @@ class TrainFaceLandmarksDataset(FaceDataset):
                 center = [image_width // 2, image_width // 2]
                 scale = 1.8
             if self.center_shift != 0:
-                shift = self.center * self.center_shift / image_width
+                shift = center * self.center_shift / image_width
                 center[0] += int(np.random.uniform(-shift, shift))
                 center[1] += int(np.random.uniform(-shift, shift))
 
@@ -454,7 +454,7 @@ def get_train_dataset(val_img_dir, val_landmarks_dir, batch_size,
     return data_loaders, dataset_sizes
 
 
-def get_test_dataset(val_img_dir, batch_size, num_landmarks=98, num_workers=2, gray_scale=False, detect_face=False, enhance=False):
+def get_test_dataset(val_img_dir, batch_size, num_landmarks=98, num_workers=2, gray_scale=False, detect_face=False, enhance=False, img_extensions=(".jpg", ".png")):
     val_transforms = transforms.Compose([transforms.ToTensor()])
 
     val_dataset = TestFaceDataset(val_img_dir,
@@ -462,7 +462,7 @@ def get_test_dataset(val_img_dir, batch_size, num_landmarks=98, num_workers=2, g
                                   gray_scale=gray_scale,
                                   detect_face=detect_face,
                                   enhance=enhance,
-                                  transform=val_transforms)
+                                  transform=val_transforms, img_extensions=img_extensions)
 
     dataloader = torch.utils.data.DataLoader(val_dataset,
                                              batch_size=batch_size,

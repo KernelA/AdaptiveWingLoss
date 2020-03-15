@@ -15,6 +15,9 @@ from skimage import transform as ski_transform
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms, utils
 
+__all__ = ["recursive_dir_scanning", "draw_gaussian",
+           "transform", "cv_crop", "cv_rotate", "show_landmarks", "fan_NME", "fan_NME_hm", "convert_to_labels", "power_transform", "get_preds_fromhm", "resize_landmarks", "generate_weight_map", "show_pred_landmarks", "get_index_fromhm", "shuffle_lr", "fig2data"]
+
 
 def _gaussian(
         size=3, sigma=0.25, amplitude=1, normalize=False, width=None,
@@ -126,7 +129,7 @@ def transform(point, center, scale, resolution, rotation=0, invert=False):
         t_inv = torch.eye(3)
         t_inv[0][2] = resolution / 2.0
         t_inv[1][2] = resolution / 2.0
-        t = reduce(np.matmul, [t_inv, r, t_, t])
+        t = np.matmul.reduce([t_inv, r, t_, t])
 
     if invert:
         t = np.linalg.inv(t)
@@ -253,7 +256,7 @@ def fan_NME(pred_heatmaps, gt_landmarks, num_landmarks=68):
     return nme
 
 
-def fan_NME_hm(pred_heatmaps, gt_heatmaps, num_landmarks=68):
+def fan_NME_hm(pred_heatmaps, gt_landmarks, num_landmarks=68):
     '''
        Calculate total NME for a batch of data
 
@@ -325,7 +328,7 @@ def power_transform(img: np.ndarray, power: float) -> np.ndarray:
 
 
 def get_preds_fromhm(hm, center=None, scale=None, rot=None):
-    max, idx = torch.max(
+    _, idx = torch.max(
         hm.view(hm.size(0), hm.size(1), hm.size(2) * hm.size(3)), 2)
     idx += 1
     preds = idx.view(idx.size(0), idx.size(1), 1).repeat(1, 1, 2).float()
@@ -361,14 +364,14 @@ def resize_landmarks(landmarks: np.ndarray, scale_x: float, scale_y: float) -> n
     return scaled_landmarks
 
 
-def show_pred_landmarks(image: np.ndarray, landmarks: np.ndarray, ax):
+def show_pred_landmarks(image: np.ndarray, landmarks: np.ndarray, ax: matplotlib.axes.Axes):
     """Show image with pred_landmarks"""
     ax.imshow(image)
     ax.scatter(landmarks[:, 0], landmarks[:, 1], s=15, marker='.', c='g')
 
 
 def get_index_fromhm(hm):
-    max, idx = torch.max(
+    _, idx = torch.max(
         hm.view(hm.size(0), hm.size(1), hm.size(2) * hm.size(3)), 2)
     preds = idx.view(idx.size(0), idx.size(1), 1).repeat(1, 1, 2).float()
     preds[..., 0].remainder_(hm.size(3))

@@ -1,6 +1,7 @@
 import glob
 import os
 import sys
+import math
 
 import cv2
 import numpy as np
@@ -9,9 +10,7 @@ import torch
 from joblib import Parallel, delayed
 from skimage import io
 
-from utils import cv_crop
-
-sys.path.insert(0, "../utils/")
+from ..utils import cv_crop
 
 
 def transform(point, center, scale, resolution, rotation=0, invert=False):
@@ -43,7 +42,7 @@ def transform(point, center, scale, resolution, rotation=0, invert=False):
         t_inv = torch.eye(3)
         t_inv[0][2] = resolution / 2.0
         t_inv[1][2] = resolution / 2.0
-        t = reduce(np.matmul, [t_inv, r, t_, t])
+        t = np.matmul.reduce([t_inv, r, t_, t])
 
     if invert:
         t = np.linalg.inv(t)
@@ -96,7 +95,6 @@ def load_meta_subset_data(meta_path):
         lines = f.readlines()
 
     meta_data = []
-    idx = 0
     for line in lines:
         line = line.strip().split(' ')
         meta_data.append(line[-1]+line[0])

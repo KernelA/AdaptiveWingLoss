@@ -17,8 +17,8 @@ from PIL import Image, ImageDraw
 from skimage import draw, io
 from torchvision import transforms
 
-from utils.utils import (convert_to_labels, fan_NME, get_preds_fromhm,
-                         resize_landmarks, show_landmarks, show_pred_landmarks)
+from ..utils import (convert_to_labels, fan_NME, get_preds_fromhm,
+                     resize_landmarks, show_landmarks, show_pred_landmarks)
 
 matplotlib.use('Agg')
 
@@ -50,7 +50,7 @@ def find_landmarks(model, dataloader: torch.utils.data.DataLoader, root_img_dir:
             if use_gpu:
                 inputs = inputs.to(device)
 
-            outputs, boundary_channels = model(inputs)
+            outputs, _ = model(inputs)
             # Swap axes to convert tensor B x C x H x W to  B x H x W x C
             images = inputs.cpu().numpy().transpose((0, 2, 3, 1))
 
